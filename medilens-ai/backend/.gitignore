@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+
+# Uploaded reports may contain personal medical data: never commit them.
+storage/reports/*
+!storage/reports/.gitkeep
