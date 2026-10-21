@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = Field(default=10, gt=0)
     # Relative paths are resolved against the backend/ directory, not the CWD.
     REPORT_STORAGE_PATH: str = "storage/reports"
+    TESSERACT_CMD: str = ""
+
+    # Phase 6: optional remote explanation provider. Disabled until a key is set.
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-6-luna"
+    OPENAI_TIMEOUT_SECONDS: int = Field(default=20, gt=0, le=120)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -44,6 +50,16 @@ class Settings(BaseSettings):
             if value.startswith("["):
                 return value  # let pydantic parse JSON list
             return [o.strip() for o in value.split(",") if o.strip()]
+        return value
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def _normalize_debug(cls, value):
+        # Accept common log-level values found in existing local .env files.
+        if isinstance(value, str) and value.strip().upper() in {"WARN", "WARNING", "INFO", "ERROR", "CRITICAL"}:
+            return False
+        if isinstance(value, str) and value.strip().upper() == "DEBUG":
+            return True
         return value
 
 

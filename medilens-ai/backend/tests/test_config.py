@@ -15,6 +15,22 @@ def test_defaults():
     assert s.report_storage_dir == (BASE_DIR / "storage" / "reports").resolve()
 
 
+def test_ai_provider_is_disabled_by_default():
+    s = make()
+    assert s.OPENAI_API_KEY == ""
+    assert s.OPENAI_MODEL == "gpt-6-luna"
+    assert s.OPENAI_TIMEOUT_SECONDS == 20
+
+
+@pytest.mark.parametrize("level", ["WARN", "WARNING", "INFO", "ERROR", "CRITICAL"])
+def test_debug_accepts_existing_log_level_values(level):
+    assert make(DEBUG=level).DEBUG is False
+
+
+def test_debug_accepts_debug_log_level():
+    assert make(DEBUG="DEBUG").DEBUG is True
+
+
 def test_limit_is_configurable_via_environment(monkeypatch):
     monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "3")
     assert make().max_upload_size_bytes == 3 * 1024 * 1024

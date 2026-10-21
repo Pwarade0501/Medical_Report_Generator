@@ -13,8 +13,10 @@ from pathlib import Path
 from fastapi import UploadFile
 
 from app.core.config import settings
-from app.core.errors import ApiError, EmptyFileError, FileTooLargeError, StorageError
+from app.core.errors import (ApiError, EmptyFileError, FileTooLargeError,
+                             ReportNotFoundError, StorageError, UnsupportedReportError)
 from app.services import file_validation as fv
+from app.services.report_metadata import ReportMetadataStore
 
 logger = logging.getLogger("medilens.storage")
 
@@ -38,6 +40,24 @@ class ReportStorage:
 
     def _max_size_label(self) -> str:
         return f"{self.max_upload_bytes / (1024 * 1024):g} MB"
+
+    def get_report_path(self, report_id: uuid.UUID) -> Path:
+        """Resolve a supported uploaded report by its server-generated ID."""
+        report_dir = (self.root / str(report_id)).resolve()
+        if report_dir.parent != self.root:
+            raise ReportNotFoundError("Report not found.")
+        try:
+            candidates = [p for p in report_dir.iterdir() if p.is_file()]
+        except FileNotFoundError:
+            raise ReportNotFoundError("Report not found.")
+        except OSError:
+            logger.exception("Failed to locate report %s", report_id)
+            raise StorageError("Failed to access the uploaded report.")
+        if not candidates:
+            raise ReportNotFoundError("Report not found.")
+        if len(candidates) != 1 or candidates[0].suffix.lower() not in {".pdf", ".jpg", ".jpeg", ".png"}:
+            raise UnsupportedReportError("Text extraction supports PDF, JPG, JPEG and PNG reports.")
+        return candidates[0]
 
     async def save_report(self, upload: UploadFile) -> StoredReport:
         # 1. Cheap checks first: extension + declared MIME type
@@ -80,6 +100,15 @@ class ReportStorage:
             logger.exception("Failed to store report %s", report_id)
             shutil.rmtree(report_dir, ignore_errors=True)
             raise StorageError("Failed to store the uploaded file.")
+
+        try:
+            ReportMetadataStore(self.root).record_upload(
+                report_id, fv.display_filename(filename), file_type
+            )
+        except Exception as exc:
+            logger.error("Failed to index report %s (%s)", report_id, type(exc).__name__)
+            shutil.rmtree(report_dir, ignore_errors=True)
+            raise StorageError("Failed to store the uploaded file.") from exc
 
         return StoredReport(
             report_id=report_id,

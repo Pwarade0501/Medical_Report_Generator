@@ -14,7 +14,7 @@ def upload(client, filename, content, content_type):
 
 
 def saved_files(storage_root):
-    return [p for p in storage_root.rglob("*") if p.is_file()] if storage_root.exists() else []
+    return [p for p in storage_root.rglob("*") if p.is_file() and p.name != ".report_metadata.sqlite3"] if storage_root.exists() else []
 
 
 # ---------- 1-3. Valid uploads ----------
